@@ -1,0 +1,105 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sLowRev.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.Pos.Declare(Long)
+V.Local.sLen.Declare(Long)
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+'Use the Part Load Hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,12455,"OR",V.Caller.Hook,=,12460)
+	V.Local.Pos.Redim(0,1)
+	V.Local.sLen.Redim(0,1)
+	V.Local.Pos(0).Set(1)
+	V.Local.Pos(1).Set(18)
+	V.Local.sLen(0).Set(17)
+	V.Local.sLen(1).Set(3)
+	
+	'Ensure a part is in the field.
+	F.Intrinsic.Control.If(V.Passed.000071,!=,"")
+		'Set the Part number
+		V.Local.sPart.Set(V.Passed.000071)
+		'Make sure the part is padded with blanks to 17
+		F.Intrinsic.String.RPad(V.Local.sPart," ",17,V.Local.sPart)
+		'Look for all parts order Ascending so the lowest rev is retained.
+		V.Local.sSql.Set("Select Part, Qty_OnHand from Inventory_Mstr where Flag_Inactive <> 'Y' and Part Like '")
+		F.Intrinsic.String.Concat(V.Local.sSql,V.Local.sPart,"%' Order by Part",V.Local.sSql)
+		F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSql)
+		'check to see if records were found
+		F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,False)
+			'Save lowest rev that is active
+			V.Local.sPart.Set(V.ODBC.conx!rst.FieldValTrim!Part)
+			'Loop through all revs
+			F.Intrinsic.Control.DoUntil(V.ODBC.conx!rst.EOF,=,True)
+				'Check to see if there is a qty on hand
+				F.Intrinsic.Control.If(V.ODBC.conx!rst.FieldValTrim!Qty_Onhand,<=,0)
+					'If not move to the next
+					F.ODBC.conx!rst.MoveNext
+				F.Intrinsic.Control.Else
+					'Save lowest rev'ed Part with Qty on hand > 0
+					V.Local.sPart.Set(V.ODBC.conx!rst.FieldValTrim!Part)
+					F.Intrinsic.Control.ExitDo
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Loop
+			
+			'Split the part from the Rev
+			F.Intrinsic.String.PositionalSplit(V.Local.sPart,V.Local.Pos,V.Local.sLen,V.Local.sRet)
+			'Set the rev on the Screen
+			V.Passed.000072.Set(V.Local.sRet(1))
+		F.Intrinsic.Control.Else
+			F.Intrinsic.UI.Msgbox("No alternative active part found.")
+		F.Intrinsic.Control.EndIf
+		
+		F.ODBC.conx!rst.Close
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSub(Unload)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_MIC_OE_Rev.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_MIC_OE_Rev.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Unload.End
+
+
